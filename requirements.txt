@@ -1,8 +1,7 @@
 streamlit
 pandas
-numpy 
-plotly
-plotly.graph_objects
+numpy
+plotly.express
 asyncio
 os
 time 
