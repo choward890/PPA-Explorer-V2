@@ -1,8 +1,7 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly
-import plotly.graph_objects as go
+import plotly.express as px
 import asyncio
 import os  # Import os module for file name manipulation
 import time  # Import time module for timing
@@ -325,85 +324,53 @@ if uploaded_file is not None:
             # Update index
             st.session_state.index = end_index
 
-            # Create the plot using stored data
-            fig = go.Figure()
+            # Create a DataFrame for plotting
+            df_plot = pd.DataFrame({
+                'Time': st.session_state.x_full,
+                'Design Prop Conc': st.session_state.y1_full,
+                'Calc Prop Conc': st.session_state.calc_ppa_smooth_full,
+                'Calc Clean Rate': st.session_state.calc_clean_rate_full,
+                'Total Slurry Rate': st.session_state.y3_full,
+                'Pressure': st.session_state.y4_full
+            })
 
-            # Add traces
-            fig.add_trace(go.Scatter(
-                x=st.session_state.x_full,
-                y=st.session_state.y1_full,
-                name=y1_column,
-                line=dict(color=y1_color),
-                yaxis='y1'
-            ))
+            # Melt the DataFrame for plotting multiple lines
+            df_melt = df_plot.melt(id_vars=['Time'], value_vars=['Design Prop Conc', 'Calc Prop Conc'], var_name='Variable', value_name='Value')
 
-            fig.add_trace(go.Scatter(
-                x=st.session_state.x_full,
-                y=st.session_state.calc_ppa_smooth_full,
-                name='Calc Prop Conc',
-                line=dict(color=calc_prop_color),
-                yaxis='y1',
-                hovertemplate='%{y:.2f}'
-            ))
+            # Create the plot using plotly.express
+            fig = px.line(df_melt, x='Time', y='Value', color='Variable', color_discrete_map={
+                'Design Prop Conc': y1_color,
+                'Calc Prop Conc': calc_prop_color
+            })
 
-            fig.add_trace(go.Scatter(
-                x=st.session_state.x_full,
-                y=st.session_state.calc_clean_rate_full,
-                name='Calc Clean Rate',
-                line=dict(color=y2_color),
-                yaxis='y3'
-            ))
+            # Add secondary y-axis traces
+            fig2 = px.line(df_plot, x='Time', y='Total Slurry Rate', color_discrete_sequence=[y3_color])
+            for trace in fig2.data:
+                fig.add_trace(trace)
+            fig.data[-1].update(yaxis="y2", name='Total Slurry Rate')
 
-            fig.add_trace(go.Scatter(
-                x=st.session_state.x_full,
-                y=st.session_state.y3_full,
-                name=y3_column,
-                line=dict(color=y3_color),
-                yaxis='y3'
-            ))
-
-            fig.add_trace(go.Scatter(
-                x=st.session_state.x_full,
-                y=st.session_state.y4_full,
-                name=y4_column,
-                line=dict(color=y4_color),
-                yaxis='y4'
-            ))
-
-            # Update layout
+            # Update layout to add secondary y-axis
             fig.update_layout(
-                xaxis=dict(
-                    domain=[0.05, 0.95],
-                    range=[x_min, x_max],
-                ),
                 yaxis=dict(
-                    title=y1_column,
+                    title='Prop Concentration',
                     titlefont=dict(color=y1_color),
                     tickfont=dict(color=y1_color),
                     range=[0, y1_max],
                     showgrid=True,
                 ),
-                yaxis3=dict(
+                yaxis2=dict(
                     title="Rate (bpm)",
                     titlefont=dict(color=y3_color),
                     tickfont=dict(color=y3_color),
-                    anchor='free',
+                    anchor='x',
                     overlaying='y',
                     side='right',
-                    position=0.9,
                     range=[0, y3_max],
                     showgrid=False,
                 ),
-                yaxis4=dict(
-                    title=y4_column,
-                    titlefont=dict(color=y4_color),
-                    tickfont=dict(color=y4_color),
-                    anchor='free',
-                    overlaying='y',
-                    side='right',
-                    position=0.95,
-                    range=[0, y4_max],
-                    showgrid=False,
+                xaxis=dict(
+                    domain=[0.05, 0.95],
+                    range=[x_min, x_max],
                 ),
                 legend=dict(
                     x=0.5,
@@ -413,6 +380,31 @@ if uploaded_file is not None:
                 ),
                 margin=dict(l=0, r=0, t=30, b=10),
                 autosize=True,
+            )
+
+            # Add Pressure as an additional trace (since plotly.express supports up to two y-axes)
+            fig.add_scatter(
+                x=st.session_state.x_full,
+                y=st.session_state.y4_full,
+                mode='lines',
+                name='Pressure',
+                line=dict(color=y4_color),
+                yaxis='y3'  # Assign to a third y-axis (we'll define it next)
+            )
+
+            # Add a third y-axis for Pressure
+            fig.update_layout(
+                yaxis3=dict(
+                    title='Pressure',
+                    titlefont=dict(color=y4_color),
+                    tickfont=dict(color=y4_color),
+                    anchor='free',
+                    overlaying='y',
+                    side='right',
+                    position=0.95,
+                    range=[0, y4_max],
+                    showgrid=False,
+                )
             )
 
             # Display the plot with container width to dynamically adjust
@@ -564,18 +556,19 @@ if uploaded_file is not None:
                 with analysis_placeholder.container():
                     st.header("Data Analysis")
 
+                    # Create a DataFrame for analysis
+                    df_analysis = pd.DataFrame({
+                        'Time': st.session_state.x_full,
+                        'Prop Difference': st.session_state.calc_total_proppant_full - st.session_state.y5_full,
+                        'Total Prop': st.session_state.y5_full,
+                        'Calculated Total Prop': st.session_state.calc_total_proppant_full,
+                        'Design Prop Conc': st.session_state.y1_full,
+                        'Calculated Prop Conc': st.session_state.calc_ppa_smooth_full
+                    })
+
                     # Plot the difference between Total Prop and Calculated Total Prop
-                    prop_diff_series = st.session_state.calc_total_proppant_full - st.session_state.y5_full
-                    fig_diff = go.Figure()
-                    fig_diff.add_trace(go.Scatter(
-                        x=st.session_state.x_full,
-                        y=prop_diff_series,
-                        name='Prop Difference',
-                        line=dict(color='#9FE2BF')
-                    ))
+                    fig_diff = px.line(df_analysis, x='Time', y='Prop Difference', title='Difference Between Calculated Total Prop and Total Prop')
                     fig_diff.update_layout(
-                        title='Difference Between Calculated Total Prop and Total Prop',
-                        xaxis_title='Time',
                         yaxis_title='Difference (lbs)',
                         autosize=True,
                         margin=dict(l=40, r=40, t=50, b=40)
@@ -583,22 +576,8 @@ if uploaded_file is not None:
                     st.plotly_chart(fig_diff, use_container_width=True)
 
                     # Plot Time vs Total Prop and Calculated Total Prop
-                    fig_total_prop = go.Figure()
-                    fig_total_prop.add_trace(go.Scatter(
-                        x=st.session_state.x_full,
-                        y=st.session_state.y5_full,
-                        name='Total Prop',
-                        line=dict(color='#808080')
-                    ))
-                    fig_total_prop.add_trace(go.Scatter(
-                        x=st.session_state.x_full,
-                        y=st.session_state.calc_total_proppant_full,
-                        name='Calculated Total Prop',
-                        line=dict(color='#800080')
-                    ))
+                    fig_total_prop = px.line(df_analysis, x='Time', y=['Total Prop', 'Calculated Total Prop'], title='Time vs Total Prop and Calculated Total Prop')
                     fig_total_prop.update_layout(
-                        title='Time vs Total Prop and Calculated Total Prop',
-                        xaxis_title='Time',
                         yaxis_title='Proppant (lbs)',
                         autosize=True,
                         margin=dict(l=40, r=40, t=80, b=40),  # Increased top margin for legend
@@ -613,22 +592,8 @@ if uploaded_file is not None:
                     st.plotly_chart(fig_total_prop, use_container_width=True)
 
                     # Plot Time vs Prop Conc and Calculated Prop Conc
-                    fig_prop_conc = go.Figure()
-                    fig_prop_conc.add_trace(go.Scatter(
-                        x=st.session_state.x_full,
-                        y=st.session_state.y1_full,
-                        name='Design Prop Conc',
-                        line=dict(color='#005903')
-                    ))
-                    fig_prop_conc.add_trace(go.Scatter(
-                        x=st.session_state.x_full,
-                        y=st.session_state.calc_ppa_smooth_full,
-                        name='Calculated Prop Conc',
-                        line=dict(color='#FF5F1F')
-                    ))
+                    fig_prop_conc = px.line(df_analysis, x='Time', y=['Design Prop Conc', 'Calculated Prop Conc'], title='Time vs Prop Conc and Calculated Prop Conc')
                     fig_prop_conc.update_layout(
-                        title='Time vs Prop Conc and Calculated Prop Conc',
-                        xaxis_title='Time',
                         yaxis_title='Concentration',
                         autosize=True,
                         margin=dict(l=40, r=40, t=80, b=40),  # Increased top margin for legend
