@@ -41,7 +41,7 @@ if uploaded_file is not None:
         y1_column = st.selectbox("Design Prop Concentration ⤵️", columns, key='y1_column')
         y3_column = st.selectbox("Total Slurry Rate ⤵️", columns, key='y3_column')
         y4_column = st.selectbox("Pressure ⤵️", columns, key='y4_column')
-        y5_column = st.selectbox("Total Proppant or anything else ⤵️", columns, key='y5_column')
+        y5_column = st.selectbox("Total Proppant ⤵️", columns, key='y5_column')
 
     # Control Buttons in the main area
     col1, col2, col3, col4, col5, col6 = st.columns(6)
